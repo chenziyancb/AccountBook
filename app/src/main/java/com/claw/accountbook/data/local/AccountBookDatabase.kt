@@ -111,9 +111,9 @@ abstract class AccountBookDatabase : RoomDatabase() {
 
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                val db = database ?: return
+                val appDb = database ?: return
                 CoroutineScope(Dispatchers.IO).launch {
-                    populateDefaultData(db)
+                    populateDefaultData(appDb)
                 }
             }
         }

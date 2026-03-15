@@ -2,7 +2,6 @@ package com.claw.accountbook.di
 
 import android.content.Context
 import com.claw.accountbook.data.local.AccountBookDatabase
-import com.claw.accountbook.data.local.SessionManager
 import com.claw.accountbook.data.local.dao.AccountBookDao
 import com.claw.accountbook.data.local.dao.CategoryDao
 import com.claw.accountbook.data.local.dao.RecordDao
@@ -49,11 +48,5 @@ object DatabaseModule {
     @Singleton
     fun provideAccountBookDao(database: AccountBookDatabase): AccountBookDao {
         return database.accountBookDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideSessionManager(@ApplicationContext context: Context): SessionManager {
-        return SessionManager(context)
     }
 }

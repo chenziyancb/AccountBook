@@ -53,7 +53,7 @@ fun RegisterScreen(
     var confirmPasswordError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
 
-    // 注册成功跳转
+    // 注册成功跳转（仅触发一次，导航由 AppNavigation 统一处理）
     LaunchedEffect(uiState.isLoggedIn) {
         if (uiState.isLoggedIn) {
             onRegisterSuccess()

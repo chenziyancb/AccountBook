@@ -56,12 +56,19 @@ fun AppNavigation(userViewModel: UserViewModel) {
     // 根据登录状态决定起始路由
     val startDestination = remember { AppRoutes.LOGIN }
 
-    // 监听登录状态变化，已登录则跳转主页
+    // 用 remember 标记是否已经触发过导航，避免重组时重复 navigate 导致空栈 crash
+    var hasNavigatedToMain by remember { mutableStateOf(false) }
+
+    // 监听登录状态变化，已登录则跳转主页（仅执行一次）
     LaunchedEffect(uiState.isLoggedIn) {
-        if (uiState.isLoggedIn) {
+        if (uiState.isLoggedIn && !hasNavigatedToMain) {
+            hasNavigatedToMain = true
             navController.navigate(AppRoutes.MAIN) {
                 popUpTo(0) { inclusive = true }
             }
+        } else if (!uiState.isLoggedIn) {
+            // 退出登录后重置标记，允许下次登录时再次导航
+            hasNavigatedToMain = false
         }
     }
 
