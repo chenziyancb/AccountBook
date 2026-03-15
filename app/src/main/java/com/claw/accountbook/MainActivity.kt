@@ -72,9 +72,7 @@ fun AppNavigation(userViewModel: UserViewModel) {
         composable(AppRoutes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = {
-                    navController.navigate(AppRoutes.MAIN) {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    // 导航由上方的 LaunchedEffect(uiState.isLoggedIn) 统一处理，此处不再重复 navigate
                 },
                 onNavigateToRegister = {
                     navController.navigate(AppRoutes.REGISTER)
@@ -86,9 +84,7 @@ fun AppNavigation(userViewModel: UserViewModel) {
         composable(AppRoutes.REGISTER) {
             RegisterScreen(
                 onRegisterSuccess = {
-                    navController.navigate(AppRoutes.MAIN) {
-                        popUpTo(0) { inclusive = true }
-                    }
+                    // 导航由上方的 LaunchedEffect(uiState.isLoggedIn) 统一处理，此处不再重复 navigate
                 },
                 onNavigateToLogin = {
                     navController.popBackStack()

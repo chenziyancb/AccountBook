@@ -1,6 +1,8 @@
 package com.claw.accountbook.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -275,6 +277,11 @@ fun AddRecordDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // 日期选择
+                val dateInteractionSource = remember { MutableInteractionSource() }
+                val isDatePressed by dateInteractionSource.collectIsPressedAsState()
+                if (isDatePressed) {
+                    LaunchedEffect(Unit) { showDatePickerDialog = true }
+                }
                 OutlinedTextField(
                     value = dateFormatter.format(Date(selectedDate)),
                     onValueChange = {},
@@ -287,20 +294,20 @@ fun AddRecordDialog(
                             tint = MaterialTheme.colorScheme.primary
                         )
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDatePickerDialog = true }
+                    interactionSource = dateInteractionSource,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 备注输入
+                // 备注输入（3 行高度，方便多写）
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text("备注（可选）") },
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 2
+                    minLines = 3,
+                    maxLines = 5
                 )
 
                 // 错误提示

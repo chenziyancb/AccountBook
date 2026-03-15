@@ -95,4 +95,16 @@ class RecordRepository @Inject constructor(
     suspend fun getDailyTotalsForBook(startDate: Long, endDate: Long, accountBookId: Long): List<DailyTotal> {
         return recordDao.getDailyTotalsForBook(startDate, endDate, accountBookId)
     }
+
+    suspend fun getAllRecordsOnce(): List<RecordEntity> {
+        return recordDao.getAllRecordsOnce()
+    }
+
+    suspend fun getRecordsByDateRangeOnce(startDate: Long, endDate: Long): List<RecordEntity> {
+        return recordDao.getRecordsByDateRangeOnce(startDate, endDate)
+    }
+
+    suspend fun getRecordsByDateRangeForBookOnce(startDate: Long, endDate: Long, accountBookId: Long): List<RecordEntity> {
+        return recordDao.getRecordsByDateRangeForBookOnce(startDate, endDate, accountBookId)
+    }
 }

@@ -35,45 +35,53 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun register(username: String, password: String, email: String? = null): Result<UserEntity> {
-        // 检查用户名是否已存在
-        if (userDao.getByUsername(username) != null) {
-            return Result.failure(Exception("用户名已存在"))
+        return try {
+            // 检查用户名是否已存在
+            if (userDao.getByUsername(username) != null) {
+                return Result.failure(Exception("用户名已存在"))
+            }
+
+            // 检查邮箱是否已存在
+            if (email != null && userDao.getByEmail(email) != null) {
+                return Result.failure(Exception("邮箱已被注册"))
+            }
+
+            // 加密密码（SHA-256）
+            val passwordHash = hashPassword(password)
+
+            // 创建用户
+            val user = UserEntity(
+                username = username,
+                passwordHash = passwordHash,
+                email = email
+            )
+
+            val id = userDao.insert(user)
+            val savedUser = user.copy(id = id)
+
+            // 注册成功后自动保存 Session
+            sessionManager.saveLoginSession(savedUser.id, savedUser.username)
+
+            Result.success(savedUser)
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "注册失败，请重试"))
         }
-
-        // 检查邮箱是否已存在
-        if (email != null && userDao.getByEmail(email) != null) {
-            return Result.failure(Exception("邮箱已被注册"))
-        }
-
-        // 加密密码（SHA-256）
-        val passwordHash = hashPassword(password)
-
-        // 创建用户
-        val user = UserEntity(
-            username = username,
-            passwordHash = passwordHash,
-            email = email
-        )
-
-        val id = userDao.insert(user)
-        val savedUser = user.copy(id = id)
-
-        // 注册成功后自动保存 Session
-        sessionManager.saveLoginSession(savedUser.id, savedUser.username)
-
-        return Result.success(savedUser)
     }
 
     suspend fun login(username: String, password: String): Result<UserEntity> {
-        val passwordHash = hashPassword(password)
-        val user = userDao.login(username, passwordHash)
+        return try {
+            val passwordHash = hashPassword(password)
+            val user = userDao.login(username, passwordHash)
 
-        return if (user != null) {
-            // 登录成功，持久化 Session
-            sessionManager.saveLoginSession(user.id, user.username)
-            Result.success(user)
-        } else {
-            Result.failure(Exception("用户名或密码错误"))
+            if (user != null) {
+                // 登录成功，持久化 Session
+                sessionManager.saveLoginSession(user.id, user.username)
+                Result.success(user)
+            } else {
+                Result.failure(Exception("用户名或密码错误"))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception(e.message ?: "登录失败，请重试"))
         }
     }
 

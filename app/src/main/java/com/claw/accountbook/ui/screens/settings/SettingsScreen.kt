@@ -1,5 +1,6 @@
 package com.claw.accountbook.ui.screens.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
@@ -19,24 +21,40 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.claw.accountbook.utils.ExportUtils
+import com.claw.accountbook.viewmodel.AccountBookViewModel
+import com.claw.accountbook.viewmodel.RecordViewModel
 import com.claw.accountbook.viewmodel.UserViewModel
+import kotlinx.coroutines.launch
 
 /**
- * 设置屏幕 — 支持修改用户名、修改密码、找回密码
+ * 设置屏幕 — 支持修改用户名、修改密码、找回密码、数据导出
  */
 @Composable
 fun SettingsScreen(
     onLogout: () -> Unit = {},
-    viewModel: UserViewModel = hiltViewModel()
+    viewModel: UserViewModel = hiltViewModel(),
+    recordViewModel: RecordViewModel = hiltViewModel(),
+    accountBookViewModel: AccountBookViewModel = hiltViewModel()
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // 账本列表（导出时用）
+    val accountBooks by accountBookViewModel.accountBooks.collectAsStateWithLifecycle()
+
+    // 导出进度提示
+    var exportLoading by remember { mutableStateOf(false) }
 
     // 对话框显示状态
     var showAboutDialog by remember { mutableStateOf(false) }
@@ -181,6 +199,75 @@ fun SettingsScreen(
                             Icon(Icons.Default.ChevronRight, contentDescription = null)
                         },
                         modifier = Modifier.clickable { showForgotPasswordDialog = true }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── 数据管理 ──
+            Text(
+                text = "数据管理",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            )
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    ListItem(
+                        headlineContent = { Text("导出为 CSV（Excel）") },
+                        supportingContent = { Text("账本名称、日期、分类、金额、备注") },
+                        leadingContent = { Icon(Icons.Default.Download, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        trailingContent = {
+                            if (exportLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.ChevronRight, contentDescription = null)
+                            }
+                        },
+                        modifier = Modifier.clickable(enabled = !exportLoading) {
+                            scope.launch {
+                                exportLoading = true
+                                try {
+                                    val allRecords = recordViewModel.allRecordsForExport()
+                                    val bookMap = accountBooks.associateBy { it.id }
+                                    ExportUtils.exportCsv(context, allRecords, bookMap)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
+                                } finally {
+                                    exportLoading = false
+                                }
+                            }
+                        }
+                    )
+
+                    HorizontalDivider()
+
+                    ListItem(
+                        headlineContent = { Text("导出为 SQL 文件") },
+                        supportingContent = { Text("INSERT 语句格式，可用于数据迁移") },
+                        leadingContent = { Icon(Icons.Default.Download, contentDescription = null, tint = MaterialTheme.colorScheme.secondary) },
+                        trailingContent = {
+                            if (exportLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.ChevronRight, contentDescription = null)
+                            }
+                        },
+                        modifier = Modifier.clickable(enabled = !exportLoading) {
+                            scope.launch {
+                                exportLoading = true
+                                try {
+                                    val allRecords = recordViewModel.allRecordsForExport()
+                                    val bookMap = accountBooks.associateBy { it.id }
+                                    ExportUtils.exportSql(context, allRecords, bookMap)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
+                                } finally {
+                                    exportLoading = false
+                                }
+                            }
+                        }
                     )
                 }
             }

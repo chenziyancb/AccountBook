@@ -10,6 +10,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -18,39 +19,40 @@ import androidx.core.view.WindowCompat
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
-    primaryContainer = PrimaryLight,
-    onPrimaryContainer = PrimaryDark,
+    primaryContainer = PrimaryContainer,
+    onPrimaryContainer = OnPrimaryContainer,
     secondary = Secondary,
     onSecondary = OnSecondary,
-    secondaryContainer = SecondaryLight,
-    onSecondaryContainer = SecondaryDark,
+    secondaryContainer = SecondaryContainer,
+    onSecondaryContainer = OnSecondaryContainer,
     background = Background,
     onBackground = OnBackground,
     surface = Surface,
     onSurface = OnSurface,
     surfaceVariant = SurfaceVariant,
     onSurfaceVariant = OnSurfaceVariant,
+    outline = Outline,
     error = Error,
-    onError = OnPrimary
+    onError = OnError,
+    errorContainer = ErrorContainer
 )
 
+// 深色主题配色方案
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryDarkTheme,
-    onPrimary = OnBackground,
-    primaryContainer = PrimaryDark,
-    onPrimaryContainer = PrimaryLight,
-    secondary = SecondaryLight,
-    onSecondary = OnBackground,
-    secondaryContainer = SecondaryDark,
-    onSecondaryContainer = SecondaryLight,
+    primary = PrimaryDark,
+    onPrimary = OnPrimaryContainer,
+    primaryContainer = PrimaryDarkContainer,
+    onPrimaryContainer = PrimaryContainer,
+    secondary = SecondaryContainer,
+    onSecondary = OnSecondaryContainer,
     background = BackgroundDark,
     onBackground = OnBackgroundDark,
     surface = SurfaceDark,
     onSurface = OnSurfaceDark,
-    surfaceVariant = SurfaceDark,
-    onSurfaceVariant = OnSurfaceVariant,
+    surfaceVariant = Color(0xFF49454F),
+    onSurfaceVariant = Color(0xFFCAC4D0),
     error = Error,
-    onError = OnPrimary
+    onError = OnError
 )
 
 @Composable

@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
         UserEntity::class,
         AccountBookEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AccountBookDatabase : RoomDatabase() {
@@ -74,28 +74,46 @@ abstract class AccountBookDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 数据库迁移：v2 -> v3（给 users.username 加唯一索引）
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // SQLite 不支持 ALTER TABLE ADD UNIQUE，需要重建索引
+                database.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_users_username ON users(username)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AccountBookDatabase {
             return INSTANCE ?: synchronized(this) {
+                // 先创建 Callback 实例，build() 后再把 db 引用传进去
+                val callback = DatabaseCallback()
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AccountBookDatabase::class.java,
                     "accountbook_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
-                    .addCallback(DatabaseCallback())
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addCallback(callback)
                     .build()
                 INSTANCE = instance
+                // build() 完成后，把真实实例注入 callback，避免 onCreate 时 INSTANCE 为 null
+                callback.database = instance
                 instance
             }
         }
 
         private class DatabaseCallback : Callback() {
+            // 由外部在 build() 之后赋值
+            var database: AccountBookDatabase? = null
+
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                INSTANCE?.let { database ->
-                    CoroutineScope(Dispatchers.IO).launch {
-                        populateDefaultData(database)
-                    }
+                val db = database ?: return
+                CoroutineScope(Dispatchers.IO).launch {
+                    populateDefaultData(db)
                 }
             }
         }

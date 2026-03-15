@@ -111,6 +111,15 @@ interface RecordDao {
 
     @Query("DELETE FROM records")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM records ORDER BY date DESC")
+    suspend fun getAllRecordsOnce(): List<RecordEntity>
+
+    @Query("SELECT * FROM records WHERE date >= :startDate AND date <= :endDate ORDER BY date ASC")
+    suspend fun getRecordsByDateRangeOnce(startDate: Long, endDate: Long): List<RecordEntity>
+
+    @Query("SELECT * FROM records WHERE date >= :startDate AND date <= :endDate AND accountBookId = :accountBookId ORDER BY date ASC")
+    suspend fun getRecordsByDateRangeForBookOnce(startDate: Long, endDate: Long, accountBookId: Long): List<RecordEntity>
 }
 
 data class CategorySum(
