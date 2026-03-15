@@ -4,10 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.claw.accountbook.data.local.dao.AccountBookDao
 import com.claw.accountbook.data.local.dao.CategoryDao
 import com.claw.accountbook.data.local.dao.RecordDao
 import com.claw.accountbook.data.local.dao.UserDao
+import com.claw.accountbook.data.local.entity.AccountBookEntity
 import com.claw.accountbook.data.local.entity.CategoryEntity
 import com.claw.accountbook.data.local.entity.RecordEntity
 import com.claw.accountbook.data.local.entity.UserEntity
@@ -22,9 +25,10 @@ import kotlinx.coroutines.launch
     entities = [
         RecordEntity::class,
         CategoryEntity::class,
-        UserEntity::class
+        UserEntity::class,
+        AccountBookEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AccountBookDatabase : RoomDatabase() {
@@ -32,10 +36,43 @@ abstract class AccountBookDatabase : RoomDatabase() {
     abstract fun recordDao(): RecordDao
     abstract fun categoryDao(): CategoryDao
     abstract fun userDao(): UserDao
+    abstract fun accountBookDao(): AccountBookDao
 
     companion object {
         @Volatile
         private var INSTANCE: AccountBookDatabase? = null
+
+        /**
+         * 数据库迁移：v1 -> v2（添加 account_books 表 + records.accountBookId 列）
+         */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 创建账本表
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS account_books (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT,
+                        userId INTEGER NOT NULL DEFAULT 0,
+                        isDefault INTEGER NOT NULL DEFAULT 0,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                // 插入默认账本
+                val now = System.currentTimeMillis()
+                database.execSQL(
+                    "INSERT INTO account_books (name, description, userId, isDefault, createdAt, updatedAt) " +
+                    "VALUES ('我的账本', '默认账本', 0, 1, $now, $now)"
+                )
+                // 给 records 表添加 accountBookId 列（默认值1对应上面插入的默认账本）
+                database.execSQL(
+                    "ALTER TABLE records ADD COLUMN accountBookId INTEGER NOT NULL DEFAULT 1"
+                )
+            }
+        }
 
         fun getDatabase(context: Context): AccountBookDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -44,6 +81,7 @@ abstract class AccountBookDatabase : RoomDatabase() {
                     AccountBookDatabase::class.java,
                     "accountbook_database"
                 )
+                    .addMigrations(MIGRATION_1_2)
                     .addCallback(DatabaseCallback())
                     .build()
                 INSTANCE = instance
@@ -56,13 +94,21 @@ abstract class AccountBookDatabase : RoomDatabase() {
                 super.onCreate(db)
                 INSTANCE?.let { database ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        populateDefaultCategories(database.categoryDao())
+                        populateDefaultData(database)
                     }
                 }
             }
         }
 
-        private suspend fun populateDefaultCategories(categoryDao: CategoryDao) {
+        private suspend fun populateDefaultData(database: AccountBookDatabase) {
+            // 插入默认账本
+            database.accountBookDao().insert(
+                AccountBookEntity(
+                    name = "我的账本",
+                    description = "默认账本",
+                    isDefault = true
+                )
+            )
             // 默认支出分类
             val expenseCategories = listOf(
                 CategoryEntity(name = "餐饮", icon = "restaurant", type = 0, isDefault = true),
@@ -74,7 +120,6 @@ abstract class AccountBookDatabase : RoomDatabase() {
                 CategoryEntity(name = "教育", icon = "school", type = 0, isDefault = true),
                 CategoryEntity(name = "其他", icon = "more_horiz", type = 0, isDefault = true)
             )
-
             // 默认收入分类
             val incomeCategories = listOf(
                 CategoryEntity(name = "工资", icon = "work", type = 1, isDefault = true),
@@ -82,8 +127,7 @@ abstract class AccountBookDatabase : RoomDatabase() {
                 CategoryEntity(name = "投资", icon = "trending_up", type = 1, isDefault = true),
                 CategoryEntity(name = "其他", icon = "more_horiz", type = 1, isDefault = true)
             )
-
-            categoryDao.insertAll(expenseCategories + incomeCategories)
+            database.categoryDao().insertAll(expenseCategories + incomeCategories)
         }
     }
 }

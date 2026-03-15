@@ -16,6 +16,7 @@ data class RecordEntity(
     val categoryName: String,     // 分类名称
     val note: String?,            // 备注
     val date: Long,               // 日期时间戳
+    val accountBookId: Long = 1,  // 所属账本ID
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

@@ -104,6 +104,19 @@ class UserRepository @Inject constructor(
         sessionManager.saveLoginSession(user.id, user.username)
     }
 
+    /**
+     * 更新密码（传入明文新密码，内部完成哈希）
+     */
+    suspend fun updatePassword(user: UserEntity, newPassword: String): UserEntity {
+        val newHash = hashPassword(newPassword)
+        val updatedUser = user.copy(
+            passwordHash = newHash,
+            updatedAt = System.currentTimeMillis()
+        )
+        userDao.update(updatedUser)
+        return updatedUser
+    }
+
     suspend fun update(user: UserEntity) {
         userDao.update(user)
     }

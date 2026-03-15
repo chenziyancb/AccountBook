@@ -1,10 +1,15 @@
 package com.claw.accountbook.ui.screens.home
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
@@ -13,24 +18,29 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.claw.accountbook.data.local.entity.AccountBookEntity
 import com.claw.accountbook.data.local.entity.CategoryEntity
 import com.claw.accountbook.data.local.entity.RecordEntity
 import com.claw.accountbook.ui.theme.ExpenseColor
 import com.claw.accountbook.ui.theme.IncomeColor
+import com.claw.accountbook.viewmodel.AccountBookViewModel
 import com.claw.accountbook.viewmodel.RecordViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * 首页 - 显示记账记录列表，支持月份筛选和记录编辑/删除
+ * 首页 - 显示记账记录列表，支持月份筛选、账本切换、记录编辑/删除
  */
 @Composable
 fun HomeScreen(
-    viewModel: RecordViewModel = hiltViewModel()
+    viewModel: RecordViewModel = hiltViewModel(),
+    accountBookViewModel: AccountBookViewModel = hiltViewModel()
 ) {
     val records by viewModel.allRecords.collectAsStateWithLifecycle()
     val monthlyStats by viewModel.monthlyStats.collectAsStateWithLifecycle()
@@ -39,10 +49,23 @@ fun HomeScreen(
     val incomeCategories by viewModel.incomeCategories.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    val accountBooks by accountBookViewModel.accountBooks.collectAsStateWithLifecycle()
+    val selectedBookId by accountBookViewModel.selectedAccountBookId.collectAsStateWithLifecycle()
+    val selectedBookName by accountBookViewModel.selectedAccountBookName.collectAsStateWithLifecycle()
+
+    // 当账本切换时，同步到 RecordViewModel
+    LaunchedEffect(selectedBookId) {
+        viewModel.setCurrentAccountBook(selectedBookId)
+    }
+
     // 用于显示编辑对话框的记录
     var editingRecord by remember { mutableStateOf<RecordEntity?>(null) }
     // 用于显示删除确认的记录
     var deletingRecord by remember { mutableStateOf<RecordEntity?>(null) }
+    // 账本切换下拉菜单
+    var showAccountBookMenu by remember { mutableStateOf(false) }
+    // 新建账本对话框
+    var showCreateBookDialog by remember { mutableStateOf(false) }
 
     // 根据 selectedDate 过滤本月记录
     val filteredRecords = remember(records, selectedDate) {
@@ -73,6 +96,29 @@ fun HomeScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        // 账本切换条
+        AccountBookSelector(
+            selectedBookName = selectedBookName,
+            accountBooks = accountBooks,
+            selectedBookId = selectedBookId,
+            menuExpanded = showAccountBookMenu,
+            onMenuToggle = { showAccountBookMenu = it },
+            onSelectAll = {
+                accountBookViewModel.selectAllAccountBooks()
+                showAccountBookMenu = false
+            },
+            onSelectBook = { book ->
+                accountBookViewModel.selectAccountBook(book.id)
+                showAccountBookMenu = false
+            },
+            onCreateNew = {
+                showAccountBookMenu = false
+                showCreateBookDialog = true
+            }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         // 月份选择导航条
         MonthNavigator(
             monthLabel = monthLabel,
@@ -173,6 +219,181 @@ fun HomeScreen(
             }
         )
     }
+
+    // 新建账本对话框
+    if (showCreateBookDialog) {
+        CreateAccountBookDialog(
+            onDismiss = { showCreateBookDialog = false },
+            onConfirm = { name, desc ->
+                accountBookViewModel.createAccountBook(name, desc)
+                showCreateBookDialog = false
+            }
+        )
+    }
+}
+
+/**
+ * 账本选择器 — 顶部账本切换条
+ */
+@Composable
+fun AccountBookSelector(
+    selectedBookName: String,
+    accountBooks: List<AccountBookEntity>,
+    selectedBookId: Long,
+    menuExpanded: Boolean,
+    onMenuToggle: (Boolean) -> Unit,
+    onSelectAll: () -> Unit,
+    onSelectBook: (AccountBookEntity) -> Unit,
+    onCreateNew: () -> Unit
+) {
+    Box {
+        OutlinedCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onMenuToggle(!menuExpanded) }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Book,
+                        contentDescription = "账本",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = selectedBookName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = "切换账本",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { onMenuToggle(false) }
+        ) {
+            // "全部账本"选项
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "全部账本",
+                        fontWeight = if (selectedBookId == -1L) FontWeight.Bold else FontWeight.Normal,
+                        color = if (selectedBookId == -1L) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                onClick = onSelectAll
+            )
+
+            HorizontalDivider()
+
+            // 各个账本
+            accountBooks.forEach { book ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = book.name + if (book.isDefault) " ★" else "",
+                            fontWeight = if (selectedBookId == book.id) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedBookId == book.id) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    onClick = { onSelectBook(book) }
+                )
+            }
+
+            HorizontalDivider()
+
+            // 新建账本
+            DropdownMenuItem(
+                text = { Text("+ 新建账本", color = MaterialTheme.colorScheme.primary) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "新建账本",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                onClick = onCreateNew
+            )
+        }
+    }
+}
+
+/**
+ * 新建账本对话框
+ */
+@Composable
+fun CreateAccountBookDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, String?) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var nameError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("新建账本") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        nameError = false
+                    },
+                    label = { Text("账本名称") },
+                    placeholder = { Text("例如：家庭账本") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = nameError,
+                    supportingText = if (nameError) {
+                        { Text("账本名称不能为空") }
+                    } else null
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("备注（可选）") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.isBlank()) {
+                        nameError = true
+                        return@TextButton
+                    }
+                    onConfirm(name.trim(), description.takeIf { it.isNotBlank() })
+                }
+            ) {
+                Text("创建")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
 
 /**
@@ -215,7 +436,7 @@ fun MonthNavigator(
 }
 
 /**
- * 月度概览卡片
+ * 月度概览卡片 — 三列横排：支出 | 收入 | 结余，与预览 UI 保持一致
  */
 @Composable
 fun MonthlyOverviewCard(
@@ -234,65 +455,77 @@ fun MonthlyOverviewCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "本月收支",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            // 三列：收入 | 支出（分隔线分隔）
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // 收入
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = "收入",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "¥${String.format("%.2f", income)}",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = IncomeColor,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
+                // 分隔线
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(36.dp)
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                )
+
                 // 支出
-                Column(horizontalAlignment = Alignment.End) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = "支出",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "¥${String.format("%.2f", expense)}",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = ExpenseColor,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            // 余额
-            Row(
+            // 结余行
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 10.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            )
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "结余: ",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    text = "结余",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "¥${String.format("%.2f", balance)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (balance >= 0) IncomeColor else ExpenseColor,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -301,7 +534,7 @@ fun MonthlyOverviewCard(
 }
 
 /**
- * 记录项 - 支持点击编辑/删除
+ * 记录项 — 预览 UI 风格：左侧彩色圆角图标 + 分类名/备注/日期 + 右侧金额
  */
 @Composable
 fun RecordItem(
@@ -309,59 +542,95 @@ fun RecordItem(
     onEdit: (RecordEntity) -> Unit,
     onDelete: (RecordEntity) -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("M月d日", Locale.getDefault())
     var showMenu by remember { mutableStateOf(false) }
+
+    // 根据分类名映射 emoji，与预览风格一致
+    val (emoji, iconBg) = remember(record.categoryName, record.type) {
+        if (record.type == 1) {
+            // 收入
+            when {
+                record.categoryName.contains("工资") || record.categoryName.contains("薪") -> "💰" to Color(0xFFE8F5E9)
+                record.categoryName.contains("兼职") || record.categoryName.contains("副业") -> "💼" to Color(0xFFF3E5F5)
+                record.categoryName.contains("理财") || record.categoryName.contains("投资") -> "📈" to Color(0xFFE3F2FD)
+                record.categoryName.contains("红包") || record.categoryName.contains("奖励") -> "🎁" to Color(0xFFFCE4EC)
+                else -> "💵" to Color(0xFFE8F5E9)
+            }
+        } else {
+            // 支出
+            when {
+                record.categoryName.contains("餐") || record.categoryName.contains("饮") || record.categoryName.contains("食") -> "🍜" to Color(0xFFFFF3E0)
+                record.categoryName.contains("交通") || record.categoryName.contains("出行") -> "🚇" to Color(0xFFE3F2FD)
+                record.categoryName.contains("购物") || record.categoryName.contains("衣") -> "🛍️" to Color(0xFFFCE4EC)
+                record.categoryName.contains("娱乐") || record.categoryName.contains("游") -> "🎮" to Color(0xFFF3E5F5)
+                record.categoryName.contains("住") || record.categoryName.contains("房") -> "🏠" to Color(0xFFE8F5E9)
+                record.categoryName.contains("医") || record.categoryName.contains("药") -> "💊" to Color(0xFFFFEBEE)
+                record.categoryName.contains("教") || record.categoryName.contains("书") -> "📚" to Color(0xFFE3F2FD)
+                else -> "💳" to Color(0xFFF5F5F5)
+            }
+        }
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { showMenu = true }
+            .clickable { showMenu = true },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 彩色圆角图标
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(iconBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = emoji, style = MaterialTheme.typography.titleMedium)
+            }
+
+            // 分类 + 备注 + 日期
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = record.categoryName,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
-                if (!record.note.isNullOrBlank()) {
-                    Text(
-                        text = record.note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                val meta = buildString {
+                    if (!record.note.isNullOrBlank()) append("${record.note} · ")
+                    append(dateFormat.format(Date(record.date)))
                 }
                 Text(
-                    text = dateFormat.format(Date(record.date)),
+                    text = meta,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
+            // 金额
             Text(
                 text = "${if (record.type == 1) "+" else "-"}¥${String.format("%.2f", record.amount)}",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = if (record.type == 1) IncomeColor else ExpenseColor,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        // 操作菜单
+        // 长按操作菜单
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { showMenu = false }
         ) {
             DropdownMenuItem(
                 text = { Text("编辑") },
-                leadingIcon = {
-                    Icon(Icons.Default.Edit, contentDescription = "编辑")
-                },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = "编辑") },
                 onClick = {
                     showMenu = false
                     onEdit(record)
@@ -370,11 +639,7 @@ fun RecordItem(
             DropdownMenuItem(
                 text = { Text("删除", color = MaterialTheme.colorScheme.error) },
                 leadingIcon = {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "删除",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+                    Icon(Icons.Default.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
                 },
                 onClick = {
                     showMenu = false
